@@ -8,7 +8,7 @@
 #include <string.h>
 #define PORT 8080
 
-int main(int argc. char const *argv[])
+int main(int argc, char const *argv[])
 {
 
 	int server_fd, new_socket, valread;	
@@ -19,7 +19,7 @@ int main(int argc. char const *argv[])
 	char *hello = "Hello from the server";
 	
 	//Create the socket file descriptor
-	if ((server_df = socket(AF_INET, SOCK_STREAM, 0)) == 0)
+	if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0)
 	{
 		perror("socket failed");
 		exit(EXIT_FAILURE);	
