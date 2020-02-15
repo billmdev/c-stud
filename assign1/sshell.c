@@ -3,6 +3,8 @@
 #include <unistd.h>
 #include <string.h>
 #include <sys/wait.h>
+#include "tcp-utils/tcp-utils.h"
+
 
 #define SSHELL_RL_BUFSIZE 1024
 char *sshell_read_line(void)
@@ -41,7 +43,7 @@ char *sshell_read_line(void)
 
 #define SSHELL_TOK_BUFSIZE 64
 #define SSHELL_TOK_DELIM " \t\r\n\a"
-char **sshell_split_line(char *line)
+char **sshell_line_splitter(char *line)
 {
   int bufsize = SSHELL_TOK_BUFSIZE, position = 0;
   char **tokens = malloc(bufsize * sizeof(char*));
@@ -92,6 +94,64 @@ int sshell_launch(char **args)
 
   return 1;
 }
+
+
+void more_cmd(const char* filename, const size_t hsize, const size_t vsize)
+{
+  const size_t maxline = hsize + 256;
+
+  char* line = new char [maxline + 1];
+
+  line[maxline] = '\0';
+ 
+  // Print a header
+
+  printf("--- more: %s ---\n", filename);
+
+  int fd = open(filename, O_RDONLY);
+  if (fd < 0) {
+    sprintf(line, "more: %s", filename);
+    perror(line);
+    delete [] line;
+    
+    return 0;
+  }
+
+  while(1) {
+    for (size_t i = 0; i < vsize; i++) {
+
+      int n = readline(fd, line, maxline);
+      if (n < 0) {
+         if (n != recv_nodata) {  // error condition
+            sprintf(line, "more: %s", filename);
+            perror(line);
+         }
+         close(fd);
+         delete [] line;
+         return 0;
+      }
+
+      line[hsize] = '\0';  // trim longer lines
+      printf("%s\n", line);
+
+    }  
+
+    printf(":");
+    fflush(stdout);
+    fgets(line, 10, stdin);
+    if (line[0] != ' ') {
+       close(fd);
+       delete [] line;
+       return 0;
+    }
+
+  }
+  delete [] line;
+
+}
+
+
+
 
 int sshell_cd(char **args);
 int sshell_help(char **args);
