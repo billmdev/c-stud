@@ -155,7 +155,7 @@ void do_more(const char* filename, const size_t hsize, const size_t vsize) {
 
 
 //code taken from TCP client
-int SocketConnect(int argc, char** argv) {
+int socketconnect(int argc, char** argv) {
 	const int ALEN = 256;
 	char req[ALEN];
 	char ans[ALEN];
@@ -165,9 +165,9 @@ int SocketConnect(int argc, char** argv) {
 	   return 1;
     	}
 
-	int sd = connectbyport(argv[1],argv[2]);
+	int sd = connectbyport(RHOST, RPORT);
     if (sd == err_host) {
-        fprintf(stderr, "Cannot find host %s.\n", argv[1]);
+        fprintf(stderr, "Cannot find host %s.\n", RHOST);
         return 1;
     }
     if (sd < 0) {
@@ -177,7 +177,7 @@ int SocketConnect(int argc, char** argv) {
 
 
     // we now have a valid, connected socket
-    printf("Connected to %s on port %s.\n", argv[1], argv[2]);
+    printf("Connected to %s on port %s.\n", RHOST, RPORT);
 
     while (1) {
         int n;
@@ -186,7 +186,7 @@ int SocketConnect(int argc, char** argv) {
             if (n == 0) {
                 shutdown(sd, SHUT_RDWR);
                 close(sd);
-                printf("Connection closed by %s.\n", argv[1]);
+                printf("Connection closed by %s.\n", RHOST);
                 return 0;
             }
             if (n < 0) {
@@ -250,6 +250,8 @@ int main (int argc, char** argv, char** envp) {
     char* com_tok[129];  // buffer for the tokenized commands
     size_t num_tok;      // number of tokens
 
+	RHOST = malloc(256*sizeof(char));
+	RPORT = malloc(6*sizeof(char));
     printf("Simple shell v1.0.\n");
 
     // Config:
@@ -295,6 +297,12 @@ int main (int argc, char** argv, char** envp) {
             vsize = atol(com_tok[1]);
         else if (strcmp(com_tok[0], "HSIZE") == 0 && atol(com_tok[1]) > 0)
             hsize = atol(com_tok[1]);
+
+		// Because they are converted to strings and not long integers
+		else if (strcmp(com_tok[0], "RHOST") == 0 && strlen(com_tok[1]) > 0)
+			RHOST = strlen(com_tok[1]);
+		else if (strcmp(com_tok[0], "RPORT") == 0 && strlen(com_tok[1]) > 0)
+			RPORT = strlen(com_tok[1]);
         // lines that do not make sense are hereby ignored
     }
     close(confd);
@@ -322,10 +330,32 @@ int main (int argc, char** argv, char** envp) {
 
     printf("Terminal set to %ux%u.\n", (unsigned int)hsize, (unsigned int)vsize);
 
-    // install the typical signal handler for zombie cleanup
-    // (we will inhibit it later when we need a different behaviour,
+	if (RHOST <= 0) {
+
+		RHOST = "10.18.0.21";
+		confd = open(config, O_WRONLY|O_CREAT|O_APPEND, S_IRUSR|S_IWUSR);
+		write(confd, "RHOST 10.18.0.21\n", strlen("RHOST 10.18.0.21\n"));
+		close(confd);
+		fprintf(stderr, "%s: cannot obtain a valid remote hostname, will use the default\n");
+	}
+	
+	if (RPORT <= 0) {
+		
+		RPORT = "9001";
+		confd = open(config, O_WRONLY|O_CREAT|O_APPREND, S_IRUSR|S_IWUSR);
+		write(confd, "RPORT 9001\n", strlen("RPORT 9001\n"));
+		close(confd);
+		fprintf(stderr, "%s: cannot obtain a valid remote port number, will use the default\n");
+	}
+
+	printf("Remote Server set to Host name: %s and Port number: %s.\n", RHOST, RPORT);
+	
+
+	// install the typical signal handler for zombie cleanup       
+	// (we will inhibit it later when we need a different behaviour,
     // see run_it)
     signal(SIGCHLD, zombie_reaper);
+
 
     // Command loop:
     while(1) {
@@ -402,6 +432,22 @@ int main (int argc, char** argv, char** envp) {
                     printf("%s completed with a non-null exit code (%d)\n", real_com[0], WEXITSTATUS(r));
                 }
             }
-        }
-    }
+        } else { //execute background command but for connecting, sending/receiving commands to/from remote server
+			// awaits for completion
+				if (bg) {
+					int bgp = fork();
+					if (bgp == 0) { // child connecting and executing to remote serve
+					const int argc = sizeof(real_com)/sizeof(char*);
+					int r = socketconnect(argc, real_com);
+					printf("& %s done (%d)\n", real_com, WEXITSTATUS(r));
+
+					if (r != 0) {
+						printf("& %s completed with a non-null exit code\n", real_com);
+					}
+				} else 
+					continue;
+
+				}
+		}
+	}
 }
