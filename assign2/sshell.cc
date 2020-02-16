@@ -153,7 +153,8 @@ void do_more(const char* filename, const size_t hsize, const size_t vsize) {
 }
 
 
-
+char* RHOST;// 
+char* RPORT;
 //code taken from TCP client
 int socketconnect(int argc, char** argv) {
 	const int ALEN = 256;
@@ -250,8 +251,8 @@ int main (int argc, char** argv, char** envp) {
     char* com_tok[129];  // buffer for the tokenized commands
     size_t num_tok;      // number of tokens
 
-	RHOST = malloc(256*sizeof(char));
-	RPORT = malloc(6*sizeof(char));
+	RHOST = (char*)malloc(256*sizeof(char));
+	RPORT = (char*)malloc(6*sizeof(char));
     printf("Simple shell v1.0.\n");
 
     // Config:
@@ -300,9 +301,9 @@ int main (int argc, char** argv, char** envp) {
 
 		// Because they are converted to strings and not long integers
 		else if (strcmp(com_tok[0], "RHOST") == 0 && strlen(com_tok[1]) > 0)
-			RHOST = strlen(com_tok[1]);
+			char* RHOST = (char*)(com_tok[1]);
 		else if (strcmp(com_tok[0], "RPORT") == 0 && strlen(com_tok[1]) > 0)
-			RPORT = strlen(com_tok[1]);
+			char* RPORT = (char*)(com_tok[1]);
         // lines that do not make sense are hereby ignored
     }
     close(confd);
@@ -332,20 +333,20 @@ int main (int argc, char** argv, char** envp) {
 
 	if (RHOST <= 0) {
 
-		RHOST = "10.18.0.21";
+		RHOST = (char *)"10.18.0.21";
 		confd = open(config, O_WRONLY|O_CREAT|O_APPEND, S_IRUSR|S_IWUSR);
 		write(confd, "RHOST 10.18.0.21\n", strlen("RHOST 10.18.0.21\n"));
 		close(confd);
-		fprintf(stderr, "%s: cannot obtain a valid remote hostname, will use the default\n");
+		fprintf(stderr, "%s: cannot obtain a valid remote hostname, will use the default\n", RHOST);
 	}
 	
 	if (RPORT <= 0) {
 		
-		RPORT = "9001";
-		confd = open(config, O_WRONLY|O_CREAT|O_APPREND, S_IRUSR|S_IWUSR);
+		RPORT = (char *)"9001";
+		confd = open(config, O_WRONLY|O_CREAT|O_APPEND, S_IRUSR|S_IWUSR);
 		write(confd, "RPORT 9001\n", strlen("RPORT 9001\n"));
 		close(confd);
-		fprintf(stderr, "%s: cannot obtain a valid remote port number, will use the default\n");
+		fprintf(stderr, "%s: cannot obtain a valid remote port number, will use the default\n", RPORT);
 	}
 
 	printf("Remote Server set to Host name: %s and Port number: %s.\n", RHOST, RPORT);
@@ -425,29 +426,29 @@ int main (int argc, char** argv, char** envp) {
                 }
                 else  // parent goes ahead and accepts the next command
                     continue;
-            }
-            else {  // foreground command, we execute it and wait for completion
+            } else if (bg) { //execute background command but for connecting, sending/receiving commands to/from remote server
+			// awaits for completion
+				//if (bg) {
+					int bgp = fork();
+					if (bgp == 0) { // child connecting and executing to remote serve
+					//const int argc = sizeof(real_com)/sizeof(char*);
+					int r = socketconnect(argc, real_com);
+					printf("& %s done (%d)\n", real_com[0], WEXITSTATUS(r));
+
+					if (r != 0) {
+						printf("& %s completed with a non-null exit code\n", real_com[0]);
+					}
+				} else 
+					continue;
+			} else {  // foreground command, we execute it and wait for completion
                 int r = run_it(real_com[0], real_com, envp, path);
                 if (r != 0) {
                     printf("%s completed with a non-null exit code (%d)\n", real_com[0], WEXITSTATUS(r));
                 }
             }
-        } else { //execute background command but for connecting, sending/receiving commands to/from remote server
-			// awaits for completion
-				if (bg) {
-					int bgp = fork();
-					if (bgp == 0) { // child connecting and executing to remote serve
-					const int argc = sizeof(real_com)/sizeof(char*);
-					int r = socketconnect(argc, real_com);
-					printf("& %s done (%d)\n", real_com, WEXITSTATUS(r));
+        } 
 
-					if (r != 0) {
-						printf("& %s completed with a non-null exit code\n", real_com);
-					}
-				} else 
-					continue;
-
-				}
-		}
 	}
 }
+
+
