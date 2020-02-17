@@ -155,16 +155,13 @@ void do_more(const char* filename, const size_t hsize, const size_t vsize) {
 
 char* RHOST;// 
 char* RPORT;
-//code taken from TCP client
-int socketconnect(int argc, char** argv) {
+//From client.cc file
+int socketconnect(char** argv) {
 	const int ALEN = 256;
 	char req[ALEN];
 	char ans[ALEN];
 
-	if (argc != 3) {
-	   printf("Usage: %s host port\n", basename(argv[0]));
-	   return 1;
-    	}
+
 
 	int sd = connectbyport(RHOST, RPORT);
     if (sd == err_host) {
@@ -212,6 +209,7 @@ int socketconnect(int argc, char** argv) {
         
         send(sd,req,strlen(req),0);
         send(sd,"\n",1,0);
+		printf("message sent\n");
     }
 
 }
@@ -301,9 +299,9 @@ int main (int argc, char** argv, char** envp) {
 
 		// Because they are converted to strings and not long integers
 		else if (strcmp(com_tok[0], "RHOST") == 0 && strlen(com_tok[1]) > 0)
-			char* RHOST = (char*)(com_tok[1]);
+			strcpy(RHOST, "10.18.0.22");
 		else if (strcmp(com_tok[0], "RPORT") == 0 && strlen(com_tok[1]) > 0)
-			char* RPORT = (char*)(com_tok[1]);
+			strcpy(RPORT, "9001");
         // lines that do not make sense are hereby ignored
     }
     close(confd);
@@ -331,21 +329,23 @@ int main (int argc, char** argv, char** envp) {
 
     printf("Terminal set to %ux%u.\n", (unsigned int)hsize, (unsigned int)vsize);
 
-	if (RHOST <= 0) {
+	if (strcmp(com_tok[0], "RHOST")) {
 
-		RHOST = (char *)"10.18.0.21";
+		strcpy(RHOST, "10.18.0.22");
 		confd = open(config, O_WRONLY|O_CREAT|O_APPEND, S_IRUSR|S_IWUSR);
-		write(confd, "RHOST 10.18.0.21\n", strlen("RHOST 10.18.0.21\n"));
+		write(confd, "RHOST 10.18.0.22\n", strlen("RHOST 10.18.0.22\n"));
 		close(confd);
+	} else {
 		fprintf(stderr, "%s: cannot obtain a valid remote hostname, will use the default\n", RHOST);
 	}
 	
-	if (RPORT <= 0) {
+	if (strcmp(com_tok[0], "RPORT")) {
 		
-		RPORT = (char *)"9001";
+		strcpy(RPORT, "9001");
 		confd = open(config, O_WRONLY|O_CREAT|O_APPEND, S_IRUSR|S_IWUSR);
 		write(confd, "RPORT 9001\n", strlen("RPORT 9001\n"));
 		close(confd);
+	} else {
 		fprintf(stderr, "%s: cannot obtain a valid remote port number, will use the default\n", RPORT);
 	}
 
@@ -390,7 +390,15 @@ int main (int argc, char** argv, char** envp) {
             // specifies a background process...
             real_com = com_tok + 1;  
         }
-
+		
+		int rem =0;
+		if (strcmp(com_tok[0], "rem") == 0){
+#ifdef DEBUG
+			fprintf(stderr, "%s: remote command\n", __FILE__);
+#endif
+			rem = 1;
+			real_com = com_tok + 1;
+		}
         // ASSERT: num_tok > 0
 
         // Process input:
@@ -426,28 +434,35 @@ int main (int argc, char** argv, char** envp) {
                 }
                 else  // parent goes ahead and accepts the next command
                     continue;
-            } else if (bg) { //execute background command but for connecting, sending/receiving commands to/from remote server
+            } else {// foreground command, execute and wait for completion.
+				int r = run_it(real_com[0], real_com, envp, path);
+                printf("& %s done (%d)\n", real_com[0], WEXITSTATUS(r));
+                if (r != 0) {
+                	printf("& %s completed with a non-null exit code (%d)\n", real_com[0], WEXITSTATUS(r));
+                   
+				}
+			}
+
+			if (rem) { //execute background command but for connecting, sending/receiving commands to/from remote server
 			// awaits for completion
-				//if (bg) {
+				if (bg) {
 					int bgp = fork();
 					if (bgp == 0) { // child connecting and executing to remote serve
-					//const int argc = sizeof(real_com)/sizeof(char*);
-					int r = socketconnect(argc, real_com);
-					printf("& %s done (%d)\n", real_com[0], WEXITSTATUS(r));
+						//const int argc = sizeof(real_com)/sizeof(char*);
+						socketconnect(real_com);
+						return 0;
 
-					if (r != 0) {
-						printf("& %s completed with a non-null exit code\n", real_com[0]);
-					}
-				} else 
-					continue;
-			} else {  // foreground command, we execute it and wait for completion
-                int r = run_it(real_com[0], real_com, envp, path);
-                if (r != 0) {
-                    printf("%s completed with a non-null exit code (%d)\n", real_com[0], WEXITSTATUS(r));
-                }
-            }
-        } 
+					} else 
+						continue;
+				} else {  // foreground command, we execute it and wait for completion
+                	int r = socketconnect(real_com);
+                	if (r != 0) {
+                    	printf("%s completed with a non-null exit code (%d)\n", real_com[0], WEXITSTATUS(r));
+                	}
+            	}
+        	} 
 
+		}
 	}
 }
 
