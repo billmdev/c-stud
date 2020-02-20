@@ -157,26 +157,23 @@ char* RHOST;//
 char* RPORT;
 int keepalive;
 int sd;
+int rembg = 0;
 //From client.cc file
 int socketconnect(char** argv) {
 	const int ALEN = 256;
 	char req[ALEN];
 	char ans[ALEN];
-
-	if (keepalive) {
-		sd = keepalive;
-	} else {
-
+	
 		sd = connectbyport(RHOST, RPORT);
-    	if (sd == err_host) {
-    	    fprintf(stderr, "Cannot find host %s.\n", RHOST);
-    	    return 1;
-    	}
-    	if (sd < 0) {
-    	    perror("connectbyport");
-    	    return 1;
-    	}
-	}
+	    if (sd == err_host) {
+   		    fprintf(stderr, "Cannot find host %s.\n", RHOST);
+   		    return 1;
+   		}
+   		if (sd < 0) {
+   			perror("connectbyport");
+   		    return 1;
+   		}
+
 
 
     // we now have a valid, connected socket
@@ -186,6 +183,7 @@ int socketconnect(char** argv) {
         int n;
         
         while ((n = recv_nonblock(sd,ans,ALEN-1,500)) != recv_nodata) {
+			printf("%s", ans);
             if (n == 0) {
                 shutdown(sd, SHUT_RDWR);
                 close(sd);
@@ -199,12 +197,12 @@ int socketconnect(char** argv) {
                 break;
             }
             ans[n] = '\0';
-            printf("%s", ans);
+            
             fflush(stdout);
         }
 
-        printf("> ");
-        fflush(stdout);
+        //printf("> ");
+        
         //fgets(req,256,stdin);
         // eat up the terminating newline
 		//strcpy(req, argv); 
@@ -218,7 +216,17 @@ int socketconnect(char** argv) {
         send(sd,req,strlen(req),0);
         send(sd,"\n",1,0);
 		printf("message sent\n");
+		if (rembg == 1){
+			printf("%s",prompt);
+			fflush(stdout);
+			//printf("%s\n", ans);
+		}
+		sleep(2);
 		printf("%s\n", ans);
+		if(!keepalive){// as connectbyport() renders the connection active by default
+			shutdown(sd, SHUT_RDWR);		
+		} else
+			return 0;
     }
 
 }
@@ -392,7 +400,7 @@ int main (int argc, char** argv, char** envp) {
 #ifdef DEBUG
             fprintf(stderr, "%s: background command\n", __FILE__);
 #endif
-            bg = 1;
+            rembg = 1;
             // discard the first token now that we know that it
             // specifies a background process...
             real_com = com_tok + 1;  
@@ -409,7 +417,13 @@ int main (int argc, char** argv, char** envp) {
 			real_com = com_tok + 1;
 		}
         // ASSERT: num_tok > 0
-
+		if (strcmp(com_tok[1], "&") == 0){
+#ifdef DEBUG
+            fprintf(stderr, "%s: background command\n", __FILE__);
+#endif
+				bg = 1;
+				real_com = com_tok + 2;
+			}
 
         // Process input:
 		if (local) {
@@ -431,11 +445,11 @@ int main (int argc, char** argv, char** envp) {
 				continue;							
 		} else if (strcmp(real_com[0], "keepalive") == 0) {
 				keepalive = connectbyport(RHOST, RPORT);
-				printf("Connection is in keep alive state");
+				printf("Connection is in keep alive state\n");
 				continue;
 		} else if (strcmp(real_com[0], "close") == 0) {
 				shutdown(keepalive, SHUT_RDWR);
-				printf("Connection is closed");
+				printf("Connection is closed and no more in keepalive state\n");
 				keepalive = 0;
 				continue;
 		}
@@ -445,9 +459,10 @@ int main (int argc, char** argv, char** envp) {
 	            if (bg) {  // background command, we fork a process that
                        // awaits for its completion
                 	int bgp = fork();
+					//real_com = real_com + 1;//maybe +1
                 	if (bgp == 0) { // child executing the command
                     	int r = run_it(real_com[0], real_com, envp, path);
-                    	printf("& %s done (%d)\n", real_com[0], WEXITSTATUS(r));
+                    	printf("! & %s done (%d)\n", real_com[0], WEXITSTATUS(r));
                     	if (r != 0) {
                         	printf("& %s completed with a non-null exit code\n", real_com[0]);
                     	}
@@ -456,20 +471,25 @@ int main (int argc, char** argv, char** envp) {
 						continue;
             	} else {// foreground command, execute and wait for completion.
 					int r = run_it(real_com[0], real_com, envp, path);
-                	printf("& %s done (%d)\n", real_com[0], WEXITSTATUS(r));
+                	printf("! %s done (%d)\n", real_com[0], WEXITSTATUS(r));
                 	if (r != 0) {
-                		printf("& %s completed with a non-null exit code (%d)\n", real_com[0], WEXITSTATUS(r));
+                		printf("! %s completed with a non-null exit code (%d)\n", real_com[0], WEXITSTATUS(r));
                    
 					}
 				} 
 			
 			} else { //execute background command but for connecting, sending/receiving commands to/from remote server
 			// awaits for completion
-				if (bg) {
+				if (rembg) {
 					int bgp = fork();
 					if (bgp == 0) { // child connecting and executing to remote serve
 						//const int argc = sizeof(real_com)/sizeof(char*);
+						//printf("%s",prompt);						
 						socketconnect(real_com);
+						//printf("& %s has been sent\n", real_com[0]);
+						//fflush(stdout);
+						
+						
 						return 0;
 
 					} else 
