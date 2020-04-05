@@ -4,8 +4,37 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <glob.h>
 
 const size_t MAX_LINE = 1024;
+
+int list_files(glob_t *pglob)
+{
+	char *line = calloc(MAX_LINE, 1);
+	FILE *file = fopen(".logfind", "r");
+	int glob_flags = GLOB_TILDE;
+	int i = 0;
+	int rc = -1;
+	
+	check(pglob != NULL, "Invalid glob_t given.");
+	check_mem(line);
+	check(file, "Failed to open .logfind. Create that file first.");
+	
+	rc = glob("*.h", glob_flags, NULL, pglob);
+	check(rc == 0, "Failed to glob.");
+	rc = glob("*.c", glob_flags | GLOB_APPEND, NULL, pglob);
+	check(rc == 0, "Failed to glob.");
+
+	for(i = 0; i < pglob->gl_pathc; i++) {
+		debug("Matched file: %s", pglob->gl_pathv[i]);	
+	}
+	
+	rc = 0; // all good
+
+error: // fallback
+	if(line) free(line);
+	return rc;
+}
 
 int scan_file(const char *filename, int search_len, char *search_for[])
 {
