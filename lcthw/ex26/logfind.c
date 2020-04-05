@@ -20,10 +20,16 @@ int list_files(glob_t *pglob)
 	check_mem(line);
 	check(file, "Failed to open .logfind. Create that file first.");
 	
-	rc = glob("*.h", glob_flags, NULL, pglob);
-	check(rc == 0, "Failed to glob.");
-	rc = glob("*.c", glob_flags | GLOB_APPEND, NULL, pglob);
-	check(rc == 0, "Failed to glob.");
+	 while(fgets(line, MAX_LINE-1, file) != NULL) {
+        line[strlen(line) - 1] = '\0'; // drop the \n ending
+        debug("Globbing %s", line);
+
+        rc = glob(line, glob_flags, NULL, pglob);
+        check(rc == 0 || rc == GLOB_NOMATCH, "Failed to glob.");
+
+        // dumb work around to a stupid design in glob
+        if(glob_flags == GLOB_TILDE) glob_flags |= GLOB_APPEND;
+    }
 
 	for(i = 0; i < pglob->gl_pathc; i++) {
 		debug("Matched file: %s", pglob->gl_pathv[i]);	
