@@ -42,6 +42,22 @@ error: // fallback
 	return rc;
 }
 
+
+int found_it(int use_or, int found_count, int search_len)
+{
+	debug("use_or: %d, found_count: %d, search_len: %d", use_or, found_count, search_len);
+	
+	if(use_or && found_count > 0) {
+		return 1;
+	} else if(!use_or && found_count == search_len) {
+		return 1;	
+	} else {
+		return 0;	
+	}
+
+}
+
+
 int scan_file(const char *filename, int search_len, char *search_for[])
 {
 
