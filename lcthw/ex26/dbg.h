@@ -12,6 +12,7 @@
         __FILE__, __LINE__, ##__VA_ARGS__)
 #endif
 
+#define _GNU_SOURCE
 #define clean_errno() (errno == 0 ? "None" : strerror(errno))
 
 #define log_err(M, ...) fprintf(stderr,\
