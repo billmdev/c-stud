@@ -1,5 +1,5 @@
 //A tool like grep
-
+#define NDEBUG
 #include "dbg.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -58,7 +58,7 @@ int found_it(int use_or, int found_count, int search_len)
 }
 
 
-int scan_file(const char *filename, int search_len, char *search_for[])
+int scan_file(const char *filename, int use_or, int search_len, char *search_for[])
 {
 
 	char *line = calloc(MAX_LINE, 1);
@@ -97,12 +97,24 @@ error:
 
 int main(int argc, char *argv[]) 
 {
-	check(argc > 2, "USAGE: logfind word word word");
-	
-	scan_file("logfind.c", argc, argv);
+	int i = 0;
+    int use_or = 0;
+    glob_t files_found;
 
-	return 0;
+    check(argc > 1, "USAGE: logfind [-o] words");
+
+    check(parse_args(&use_or, &argc, &argv) == 0, "USAGE: logfind [-o] words");
+
+    check(list_files(&files_found) == 0, "Failed to list files.");
+
+    for(i = 0; i < files_found.gl_pathc; i++) {
+        scan_file(files_found.gl_pathv[i], use_or, argc, argv);
+    }
+
+    globfree(&files_found);
+    return 0;
 
 error:
 	return 1;
 }
+
