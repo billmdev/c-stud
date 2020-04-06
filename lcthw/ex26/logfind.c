@@ -90,9 +90,24 @@ error:
 	return -1;
 }
 
+int parse_args(int *use_or, int *argc, char **argv[]) 
+{
+    (*argc)--;
+    (*argv)++;
 
+    if(strcmp((*argv)[0], "-o") == 0) {
+        *use_or = 1;
+        (*argc)--; // skip the -o
+        (*argv)++;
+        check(*argc > 1, "You need words after -o.");
+    } else {
+        use_or = 0;
+    }
 
-
+    return 0;
+error:
+    return -1;
+}
 
 
 int main(int argc, char *argv[]) 
